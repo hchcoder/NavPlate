@@ -310,7 +310,12 @@ export default function HomeScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
-  const { user, isLoading: isUserLoading, createUser } = useCurrentUser();
+  const {
+    user,
+    isLoading: isUserLoading,
+    createUser,
+    updateUser,
+  } = useCurrentUser();
   const isBusy = isLoading || isSaving || isUserLoading;
 
   useEffect(() => {
@@ -365,18 +370,20 @@ export default function HomeScreen() {
     setIsSaving(true);
     setStorageError(null);
     try {
-      // First save creates the user in the backend with the chosen numbers.
-      if (!user) {
-        await createUser({
-          username: name,
-          seeCalories: state.macros.cal,
-          seeProtein: state.macros.pro,
-          seeCarbs: state.macros.carb,
-          seeFat: state.macros.fat,
-          seeFiber: state.macros.fib,
-          seeSugar: state.macros.sug,
-          seeSodium: state.macros.sod,
-        });
+      const preferences = {
+        seeCalories: state.macros.cal,
+        seeProtein: state.macros.pro,
+        seeCarbs: state.macros.carb,
+        seeFat: state.macros.fat,
+        seeFiber: state.macros.fib,
+        seeSugar: state.macros.sug,
+        seeSodium: state.macros.sod,
+      };
+      // First save creates the user; later saves update their choices.
+      if (user) {
+        await updateUser(preferences);
+      } else {
+        await createUser({ username: name, ...preferences });
       }
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       setDone(true);

@@ -118,4 +118,37 @@ public class UserService : IUserService
 
         return checked((int)command.LastInsertedId);
     }
+
+    public async Task UpdateUserAsync(int id, UpdateUserRequest request)
+    {
+        await using var connection =
+            _connectionFactory.CreateConnection();
+
+        await connection.OpenAsync();
+
+        const string sql = """
+            UPDATE users
+            SET SeeCalories = @seeCalories,
+                SeeProtein = @seeProtein,
+                SeeCarbs = @seeCarbs,
+                SeeFat = @seeFat,
+                SeeFiber = @seeFiber,
+                SeeSugar = @seeSugar,
+                SeeSodium = @seeSodium
+            WHERE userId = @id
+            """;
+
+        await using var command = new MySqlCommand(sql, connection);
+
+        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@seeCalories", request.SeeCalories);
+        command.Parameters.AddWithValue("@seeProtein", request.SeeProtein);
+        command.Parameters.AddWithValue("@seeCarbs", request.SeeCarbs);
+        command.Parameters.AddWithValue("@seeFat", request.SeeFat);
+        command.Parameters.AddWithValue("@seeFiber", request.SeeFiber);
+        command.Parameters.AddWithValue("@seeSugar", request.SeeSugar);
+        command.Parameters.AddWithValue("@seeSodium", request.SeeSodium);
+
+        await command.ExecuteNonQueryAsync();
+    }
 }
