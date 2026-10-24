@@ -18,6 +18,7 @@ import {
 } from "@/components/daily-preview";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { colors } from "@/styles/global";
 
 const STORAGE_KEY = "steady-plate-setup";
 
@@ -169,10 +170,10 @@ export default function HomeScreen() {
     raised: theme.backgroundSelected,
     text: theme.text,
     secondary: theme.textSecondary,
-    border: theme.textSecondary + "55",
-    accent: "#2b7a74",
-    accentText: "#ffffff",
-    accentSoft: "#d3ebe8",
+    border: colors.border,
+    accent: colors.primary,
+    accentText: colors.text,
+    accentSoft: colors.primaryTint,
   };
   const [state, setState] = useState(DEFAULT_STATE);
   const [done, setDone] = useState(false);
@@ -538,7 +539,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.text,
   },
   switchThumbOn: {
     transform: [{ translateX: 20 }],

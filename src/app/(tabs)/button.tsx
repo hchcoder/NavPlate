@@ -1,9 +1,11 @@
 import { Tabs } from "expo-router";
 import { Text, type ColorValue } from "react-native";
 
+import { colors } from "@/styles/global";
+
 const FontAwesome6 = ({
   size = 24,
-  color = "black",
+  color = colors.text,
 }: {
   name: string;
   size?: number;
@@ -16,17 +18,10 @@ const ionIcons: Record<string, string> = {
   "stats-chart": "▥",
 };
 
-const colors = {
-  header: "#FFFFFF",
-  primary: "#000000",
-  primaryBright: "#000000",
-  textMuted: "#666666",
-};
-
 const Ionicons = ({
   name,
   size = 24,
-  color = "black",
+  color = colors.text,
 }: {
   name: string;
   size?: number;

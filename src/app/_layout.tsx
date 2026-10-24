@@ -1,27 +1,25 @@
-import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
+import { DarkTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import { colors } from "@/styles/global";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={DarkTheme}>
       <AnimatedSplashOverlay />
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: colorScheme === "dark" ? "#111827" : "#ffffff",
-            borderTopColor: colorScheme === "dark" ? "#374151" : "#e5e7eb",
+            backgroundColor: colors.header,
+            borderTopColor: colors.border,
             borderTopWidth: 1,
           },
-          tabBarActiveTintColor: "#2b7a74",
-          tabBarInactiveTintColor: colorScheme === "dark" ? "#9ca3af" : "#64748b",
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
         }}
       >
         <Tabs.Screen
@@ -37,7 +35,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="meal"
+          name="meals"
           options={{
             title: "Add Meal",
           }}

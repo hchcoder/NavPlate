@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Spacing } from "@/constants/theme";
+import { colors } from "@/styles/global";
 
 export const MACROS = [
   {
@@ -9,49 +10,49 @@ export const MACROS = [
     label: "Calories",
     unit: "kcal",
     description: "Energy per meal and per day",
-    color: "#b5651d",
+    color: colors.primary,
   },
   {
     id: "pro",
     label: "Protein",
     unit: "g",
     description: "Grams of protein",
-    color: "#3c6fb0",
+    color: colors.primary,
   },
   {
     id: "carb",
     label: "Carbohydrates",
     unit: "g",
     description: "Grams of carbs",
-    color: "#8a5fb3",
+    color: colors.primary,
   },
   {
     id: "fat",
     label: "Fat",
     unit: "g",
     description: "Grams of fat",
-    color: "#b8902a",
+    color: colors.primary,
   },
   {
     id: "fib",
     label: "Fiber",
     unit: "g",
     description: "Grams of fiber",
-    color: "#3f8a56",
+    color: colors.primary,
   },
   {
     id: "sug",
     label: "Sugar",
     unit: "g",
     description: "Grams of sugar",
-    color: "#c2547a",
+    color: colors.primary,
   },
   {
     id: "sod",
     label: "Sodium",
     unit: "mg",
     description: "Milligrams of sodium",
-    color: "#5f7480",
+    color: colors.primary,
   },
 ] as const;
 
