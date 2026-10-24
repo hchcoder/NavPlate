@@ -23,7 +23,7 @@ public class FoodService : IFoodService
 
         const string sql = """
             SELECT *
-            FROM Foods
+            FROM foods
             WHERE Food_Item LIKE @searchText
             """;
 

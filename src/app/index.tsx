@@ -1,9 +1,17 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
@@ -61,57 +69,29 @@ const MACROS = [
   },
 ] as const;
 
-const OPTIONS = [
-  {
-    id: "totals",
-    label: "Daily totals",
-    description: "Add up each macro you have turned on",
-  },
-  {
-    id: "reveal",
-    label: "Hide numbers until I tap",
-    description: "Tap a number to reveal it in the preview",
-  },
-  {
-    id: "checkin",
-    label: "Meal check-ins",
-    description: "A quick, optional note on how a meal felt",
-  },
-  {
-    id: "streaks",
-    label: "Logging streaks",
-    description: "Count of days in a row you logged",
-  },
-] as const;
-
 type MacroId = (typeof MACROS)[number]["id"];
-type OptionId = (typeof OPTIONS)[number]["id"];
 
 type SetupState = {
   macros: Record<MacroId, boolean>;
-  opts: Record<OptionId, boolean>;
 };
 
 type Preset = {
   id: string;
   label: string;
   macros: readonly MacroId[];
-  opts: readonly OptionId[];
 };
 
 const PRESETS: readonly Preset[] = [
-  { id: "gentle", label: "Gentle start", macros: [], opts: ["checkin"] },
+  { id: "gentle", label: "Gentle start", macros: [] },
   {
     id: "basics",
     label: "Protein, carbs, fat",
     macros: ["pro", "carb", "fat"],
-    opts: ["checkin", "reveal"],
   },
   {
     id: "full",
     label: "Full detail",
     macros: ["cal", "pro", "carb", "fat", "fib", "sug", "sod"],
-    opts: ["totals"],
   },
 ];
 
@@ -131,7 +111,6 @@ const DEFAULT_PRESET: Preset = {
   id: "default",
   label: "Default",
   macros: ["pro", "carb", "fat", "fib"],
-  opts: ["checkin"],
 };
 
 function toState(preset: Preset): SetupState {
@@ -144,12 +123,6 @@ function toState(preset: Preset): SetupState {
       fib: preset.macros.includes("fib"),
       sug: preset.macros.includes("sug"),
       sod: preset.macros.includes("sod"),
-    },
-    opts: {
-      totals: preset.opts.includes("totals"),
-      reveal: preset.opts.includes("reveal"),
-      checkin: preset.opts.includes("checkin"),
-      streaks: preset.opts.includes("streaks"),
     },
   };
 }
@@ -176,11 +149,7 @@ function isSetupState(value: unknown): value is SetupState {
     hasBooleanValues(
       value.macros,
       MACROS.map((macro) => macro.id),
-    ) &&
-    hasBooleanValues(
-      value.opts,
-      OPTIONS.map((option) => option.id),
-    )
+    ) 
   );
 }
 
@@ -189,9 +158,6 @@ function sameAsPreset(state: SetupState, preset: Preset) {
   return (
     MACROS.every(
       (macro) => state.macros[macro.id] === presetState.macros[macro.id],
-    ) &&
-    OPTIONS.every(
-      (option) => state.opts[option.id] === presetState.opts[option.id],
     )
   );
 }
@@ -285,9 +251,6 @@ function SetupSummary({
   const selectedMacros = MACROS.filter((macro) => state.macros[macro.id]).map(
     (macro) => macro.label,
   );
-  const selectedOptions = OPTIONS.filter((option) => state.opts[option.id]).map(
-    (option) => option.label,
-  );
 
   return (
     <View
@@ -306,14 +269,6 @@ function SetupSummary({
         </Text>
         <Text style={[styles.summaryValue, { color: palette.secondary }]}>
           {selectedMacros.length > 0 ? selectedMacros.join(", ") : "No numbers"}
-        </Text>
-      </View>
-      <View style={[styles.summaryRow, { borderBottomColor: palette.border }]}>
-        <Text style={[styles.summaryLabel, { color: palette.text }]}>
-          Options
-        </Text>
-        <Text style={[styles.summaryValue, { color: palette.secondary }]}>
-          {selectedOptions.length > 0 ? selectedOptions.join(", ") : "None"}
         </Text>
       </View>
       <Text style={[styles.finePrint, { color: palette.secondary }]}>
@@ -354,7 +309,9 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
-  const isBusy = isLoading || isSaving;
+  const [username, setUsername] = useState("");
+  const { user, isLoading: isUserLoading, createUser } = useCurrentUser();
+  const isBusy = isLoading || isSaving || isUserLoading;
 
   useEffect(() => {
     let active = true;
@@ -398,17 +355,29 @@ export default function HomeScreen() {
     }));
   };
 
-  const toggleOption = (id: OptionId) => {
-    setState((current) => ({
-      ...current,
-      opts: { ...current.opts, [id]: !current.opts[id] },
-    }));
-  };
-
   async function saveSetup() {
+    const name = username.trim();
+    if (!user && name === "") {
+      setStorageError("Please tell us what to call you.");
+      return;
+    }
+
     setIsSaving(true);
     setStorageError(null);
     try {
+      // First save creates the user in the backend with the chosen numbers.
+      if (!user) {
+        await createUser({
+          username: name,
+          seeCalories: state.macros.cal,
+          seeProtein: state.macros.pro,
+          seeCarbs: state.macros.carb,
+          seeFat: state.macros.fat,
+          seeFiber: state.macros.fib,
+          seeSugar: state.macros.sug,
+          seeSodium: state.macros.sod,
+        });
+      }
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       setDone(true);
     } catch (error) {
@@ -458,6 +427,35 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.settingsColumn}>
+                  {!user ? (
+                    <View style={styles.section}>
+                      <SectionHeading
+                        title="What should we call you?"
+                        subtitle="Your name or a nickname."
+                        palette={palette}
+                      />
+                      <TextInput
+                        accessibilityLabel="What should we call you?"
+                        placeholder="Your name"
+                        placeholderTextColor={palette.secondary}
+                        value={username}
+                        onChangeText={setUsername}
+                        editable={!isBusy}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        returnKeyType="done"
+                        style={[
+                          styles.textInput,
+                          {
+                            backgroundColor: palette.surface,
+                            borderColor: palette.border,
+                            color: palette.text,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+
                   <View style={styles.section}>
                     <SectionHeading
                       title="Start from a setup"
@@ -522,27 +520,6 @@ export default function HomeScreen() {
                           palette={palette}
                           disabled={isBusy}
                           onToggle={() => toggleMacro(macro.id)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.section}>
-                    <SectionHeading
-                      title="How it looks"
-                      subtitle="Small choices that change how the daily view feels."
-                      palette={palette}
-                    />
-                    <View style={cardStyle}>
-                      {OPTIONS.map((option) => (
-                        <ChoiceRow
-                          key={option.id}
-                          title={option.label}
-                          description={option.description}
-                          value={state.opts[option.id]}
-                          palette={palette}
-                          disabled={isBusy}
-                          onToggle={() => toggleOption(option.id)}
                         />
                       ))}
                     </View>
@@ -652,6 +629,13 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
   },
   presetList: {
     flexDirection: "row",

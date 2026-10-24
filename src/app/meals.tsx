@@ -10,18 +10,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useAddMeal, type MealType } from "@/hooks/use-add-meal";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useFoodSearch } from "@/hooks/use-food-search";
+import { localDateString } from "@/hooks/use-meals";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
-// UI only. Food data and saving will come from the C# backend later.
-// Food: { id, name, brand?, servingLabel? }
-
+// Foods come from the C# backend; id is the food_item name (foods' primary key).
 type Food = {
-  id: string | null;
+  id: string;
   name: string;
-  brand?: string;
-  servingLabel?: string;
-  custom?: boolean;
+  category?: string;
 };
 type MealFood = { key: number; food: Food; servings: number };
 type Period = "AM" | "PM";
@@ -38,7 +38,7 @@ type Palette = {
   accentSoft: string;
 };
 
-const TYPES = ["Breakfast", "Lunch", "Dinner", "Snack", "Other"];
+const TYPES: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 const PERIODS: Period[] = ["AM", "PM"];
@@ -55,7 +55,13 @@ const now = (): MealTime => {
 };
 const formatTime = ({ hour, minute, period }: MealTime) =>
   `${hour}:${String(minute).padStart(2, "0")} ${period}`;
-const guessType = () => {
+// Today's date with the picked time, e.g. "2026-10-24T08:30:00" (local, no timezone).
+const toDateTime = ({ hour, minute, period }: MealTime) => {
+  const hour24 = (hour % 12) + (period === "PM" ? 12 : 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${localDateString()}T${pad(hour24)}:${pad(minute)}:00`;
+};
+const guessType = (): MealType => {
   const h = new Date().getHours();
   return h < 11 ? "Breakfast" : h < 15 ? "Lunch" : h >= 17 && h < 21 ? "Dinner" : "Snack";
 };
@@ -73,27 +79,36 @@ export default function AddMeal() {
     accentText: colors.text,
     accentSoft: colors.primaryTint,
   };
-  const [type, setType] = useState(guessType);
+  const [type, setType] = useState<MealType>(guessType);
   const [time, setTime] = useState(now);
   const [timeOpen, setTimeOpen] = useState(false);
   const [foods, setFoods] = useState<MealFood[]>([]);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [nextKey, setNextKey] = useState(0);
-  // Filled by the C# backend later.
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  // No backend endpoint for these yet, so they stay empty.
   const [recentFoods] = useState<Food[]>([]);
   const [popularFoods] = useState<Food[]>([]);
-  const [searchResults] = useState<Food[]>([]);
-  const [isSearching] = useState(false);
+
+  const { user } = useCurrentUser();
+  const { addMeal, isSaving, error: saveError } = useAddMeal();
+  const { results, isSearching, error: searchError } = useFoodSearch(query);
+  const searchResults: Food[] = results.map((f) => ({
+    id: f.food_Item,
+    name: f.food_Item,
+    category: f.category,
+  }));
 
   const q = query.trim();
-  const exact = searchResults.some((f) => f.name.toLowerCase() === q.toLowerCase());
   const options: Food[] = q
-    ? [...searchResults, ...(isSearching || exact ? [] : [{ id: null, name: q, custom: true }])]
+    ? searchResults
     : [...recentFoods, ...popularFoods.filter((p) => !recentFoods.some((r) => r.id === p.id))].slice(0, 8);
 
   const add = (food: Food) => {
     setFoods((list) => [...list, { key: nextKey, food, servings: 1 }]);
+    setSaved(false);
     setNextKey((k) => k + 1);
     setQuery("");
     setOpen(false);
@@ -102,8 +117,36 @@ export default function AddMeal() {
     setFoods((list) => list.map((f) => (f.key === key ? { ...f, servings: Math.max(0.5, f.servings + d) } : f)));
   const remove = (key: number) => setFoods((list) => list.filter((f) => f.key !== key));
 
-  function saveMeal() {
-    // TODO: send { type, time, foods } to the C# backend.
+  async function saveMeal() {
+    if (!user) {
+      setFormError("Finish the Setup tab first so we know who you are.");
+      return;
+    }
+    if (foods.length === 0) {
+      setFormError("Add at least one food.");
+      return;
+    }
+
+    setFormError(null);
+    setSaved(false);
+    try {
+      await addMeal({
+        userId: user.userId,
+        type,
+        date: toDateTime(time),
+        foodInstances: foods.map(({ food, servings }) => ({
+          food_Item: food.id,
+          servings,
+        })),
+      });
+      // Only clear the form once the meal is saved.
+      setFoods([]);
+      setType(guessType());
+      setTime(now());
+      setSaved(true);
+    } catch {
+      // useAddMeal sets the error message; the form keeps what was entered.
+    }
   }
 
   return (
@@ -206,14 +249,22 @@ export default function AddMeal() {
                   { backgroundColor: palette.background, borderColor: palette.border, color: palette.text },
                 ]}
               />
-              {open && (options.length > 0 || (q !== "" && isSearching)) && (
+              {open && (options.length > 0 || q !== "") && (
                 <View style={[styles.menu, { backgroundColor: palette.background, borderColor: palette.border }]}>
                   <Text style={[styles.group, { color: palette.secondary }]}>
-                    {!q ? "Recent and popular" : isSearching && !searchResults.length ? "Searching…" : "Results"}
+                    {!q
+                      ? "Recent and popular"
+                      : isSearching && !searchResults.length
+                        ? "Searching…"
+                        : searchError
+                          ? searchError
+                          : searchResults.length
+                            ? "Results"
+                            : `No foods match “${q}”`}
                   </Text>
                   {options.map((f) => (
                     <Pressable
-                      key={f.id ?? "custom"}
+                      key={f.id}
                       accessibilityRole="button"
                       onPress={() => add(f)}
                       style={({ pressed }) => [
@@ -222,12 +273,10 @@ export default function AddMeal() {
                       ]}
                     >
                       <View style={styles.flex}>
-                        <Text style={[styles.bold, { color: palette.text }]}>
-                          {f.custom ? `Add “${f.name}” as your own food` : f.name}
-                        </Text>
-                        <Text style={[styles.small, { color: palette.secondary }]}>
-                          {f.custom ? "Not in the list" : [f.brand, f.servingLabel].filter(Boolean).join(" · ")}
-                        </Text>
+                        <Text style={[styles.bold, { color: palette.text }]}>{f.name}</Text>
+                        {f.category ? (
+                          <Text style={[styles.small, { color: palette.secondary }]}>{f.category}</Text>
+                        ) : null}
                       </View>
                       <View style={[styles.plus, { borderColor: palette.accent }]}>
                         <Text style={[styles.bold, { color: palette.accent }]}>+</Text>
@@ -280,14 +329,25 @@ export default function AddMeal() {
 
             <Pressable
               accessibilityRole="button"
-              onPress={saveMeal}
+              accessibilityState={{ disabled: isSaving }}
+              disabled={isSaving}
+              onPress={() => void saveMeal()}
               style={({ pressed }) => [
                 styles.primaryButton,
-                { backgroundColor: palette.accent, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: palette.accent, opacity: isSaving ? 0.55 : pressed ? 0.8 : 1 },
               ]}
             >
-              <Text style={[styles.bold, { color: palette.accentText }]}>Save meal</Text>
+              <Text style={[styles.bold, { color: palette.accentText }]}>
+                {isSaving ? "Saving…" : "Save meal"}
+              </Text>
             </Pressable>
+            {formError || saveError ? (
+              <Text accessibilityRole="alert" style={styles.errorText}>
+                {formError ?? saveError}
+              </Text>
+            ) : saved ? (
+              <Text style={[styles.muted, { color: palette.secondary }]}>Meal saved.</Text>
+            ) : null}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -363,4 +423,5 @@ const styles = StyleSheet.create({
   stepText: { fontSize: 18 },
   stepValue: { minWidth: 40, textAlign: "center", fontVariant: ["tabular-nums"] },
   primaryButton: { alignSelf: "flex-start", borderRadius: 12, paddingVertical: 14, paddingHorizontal: 26 },
+  errorText: { color: "#b42318", fontSize: 14, lineHeight: 20 },
 });

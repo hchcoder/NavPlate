@@ -1,9 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { localDateString, useMeals } from "@/hooks/use-meals";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
@@ -63,22 +65,29 @@ const MACROS = [
   },
 ] as const;
 
-// The bottom toggles on the Setup screen
-const OPTION_IDS = ["totals", "reveal", "checkin", "streaks"] as const;
-
 type MacroId = (typeof MACROS)[number]["id"];
-type OptionId = (typeof OPTION_IDS)[number];
 
 type SetupState = {
   macros: Record<MacroId, boolean>;
-  opts: Record<OptionId, boolean>;
 };
 
 type Meal = {
+  id: number;
   name: string;
   time: string;
+  foods: string;
   values: Record<MacroId, number>;
 };
+
+// "2026-10-24T08:30:00" -> "8:30 AM" (read straight from the text, no timezone math)
+function formatTime(date: string) {
+  const [hour, minute] = date.slice(11, 16).split(":").map(Number);
+  const period = hour < 12 ? "AM" : "PM";
+  return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+// One decimal place, e.g. 12.25 -> 12.3
+const round = (value: number) => Math.round(value * 10) / 10;
 
 type Palette = {
   background: string;
@@ -92,13 +101,9 @@ type Palette = {
   accentSoft: string;
 };
 
-// Moods for the meal check-ins
-const MOODS = ["Satisfying", "Okay", "Hard"] as const;
-
 // Same defaults as the Setup tab, used until a saved setup loads.
 const DEFAULT_STATE: SetupState = {
   macros: { cal: false, pro: true, carb: true, fat: true, fib: true, sug: false, sod: false },
-  opts: { totals: false, reveal: false, checkin: false, streaks: false },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,8 +126,7 @@ function isSetupState(value: unknown): value is SetupState {
     hasBooleanValues(
       value.macros,
       MACROS.map((macro) => macro.id),
-    ) &&
-    hasBooleanValues(value.opts, OPTION_IDS)
+    )
   );
 }
 
@@ -131,55 +135,25 @@ function isSetupState(value: unknown): value is SetupState {
 function MacroChip({
   macro,
   value,
-  reveal,
   palette,
 }: {
   macro: (typeof MACROS)[number];
   value: number;
-  reveal: boolean;
   palette: Palette;
 }) {
-  const [shown, setShown] = useState(false);
-  const hidden = reveal && !shown;
-  const label = hidden
-    ? `${macro.label} hidden, tap to show`
-    : `${macro.label}, ${value} ${macro.unit}`;
-
-  const content = (
-    <>
+  return (
+    <View
+      accessibilityLabel={`${macro.label}, ${value} ${macro.unit}`}
+      style={[styles.macroChip, { backgroundColor: palette.background }]}
+    >
       <View style={[styles.chipDot, { backgroundColor: macro.color }]} />
       <Text style={[styles.chipLabel, { color: palette.text }]}>
         {macro.label}
       </Text>
       <Text style={[styles.chipValue, { color: palette.text }]}>
-        {hidden ? "Tap to reveal" : `${value} ${macro.unit}`}
+        {`${value} ${macro.unit}`}
       </Text>
-    </>
-  );
-
-  if (!reveal) {
-    return (
-      <View
-        accessibilityLabel={label}
-        style={[styles.macroChip, { backgroundColor: palette.background }]}
-      >
-        {content}
-      </View>
-    );
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={() => setShown((current) => !current)}
-      style={({ pressed }) => [
-        styles.macroChip,
-        { backgroundColor: palette.background, opacity: pressed ? 0.75 : 1 },
-      ]}
-    >
-      {content}
-    </Pressable>
+    </View>
   );
 }
 
@@ -193,7 +167,6 @@ function MealCard({
   state: SetupState;
   palette: Palette;
 }) {
-  const [mood, setMood] = useState<(typeof MOODS)[number] | null>(null);
   const visibleMacros = MACROS.filter((macro) => state.macros[macro.id]);
 
   return (
@@ -206,6 +179,11 @@ function MealCard({
           {meal.time}
         </Text>
       </View>
+      {meal.foods ? (
+        <Text style={[styles.mealFoods, { color: palette.secondary }]}>
+          {meal.foods}
+        </Text>
+      ) : null}
       {visibleMacros.length > 0 ? (
         <View style={styles.chipList}>
           {visibleMacros.map((macro) => (
@@ -213,47 +191,9 @@ function MealCard({
               key={macro.id}
               macro={macro}
               value={meal.values[macro.id]}
-              reveal={state.opts.reveal}
               palette={palette}
             />
           ))}
-        </View>
-      ) : null}
-      {state.opts.checkin ? (
-        <View style={styles.checkin}>
-          <Text style={[styles.checkinLabel, { color: palette.secondary }]}>
-            How did it feel?
-          </Text>
-          {MOODS.map((item) => {
-            const selected = mood === item;
-            return (
-              <Pressable
-                key={item}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => setMood(selected ? null : item)}
-                style={({ pressed }) => [
-                  styles.moodButton,
-                  {
-                    backgroundColor: selected
-                      ? palette.accentSoft
-                      : palette.surface,
-                    borderColor: selected ? palette.accent : palette.border,
-                    opacity: pressed ? 0.75 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.moodText,
-                    { color: selected ? palette.accent : palette.text },
-                  ]}
-                >
-                  {item}
-                </Text>
-              </Pressable>
-            );
-          })}
         </View>
       ) : null}
     </View>
@@ -265,12 +205,12 @@ function DailyPreview({
   state,
   palette,
   meals,
-  streakDays,
+  isLoadingMeals,
 }: {
   state: SetupState;
   palette: Palette;
   meals: readonly Meal[];
-  streakDays: number;
+  isLoadingMeals: boolean;
 }) {
   const visibleMacros = MACROS.filter((macro) => state.macros[macro.id]);
   const hasVisibleNumbers = visibleMacros.length > 0;
@@ -290,28 +230,16 @@ function DailyPreview({
           <Text style={[styles.previewTitle, { color: palette.text }]}>
             Today
           </Text>
-          {state.opts.streaks ? (
-            <View
-              style={[
-                styles.streakPill,
-                { backgroundColor: palette.accentSoft },
-              ]}
-            >
-              <Text style={[styles.streakText, { color: palette.accent }]}>
-                {streakDays} {streakDays === 1 ? "day" : "days"} logged
-              </Text>
-            </View>
-          ) : null}
         </View>
 
         {meals.length === 0 ? (
           <Text style={[styles.previewMessage, { color: palette.secondary }]}>
-            No meals logged yet.
+            {isLoadingMeals ? "Loading your meals..." : "No meals logged yet."}
           </Text>
         ) : (
           meals.map((meal) => (
             <MealCard
-              key={meal.name}
+              key={meal.id}
               meal={meal}
               state={state}
               palette={palette}
@@ -323,31 +251,6 @@ function DailyPreview({
           <Text style={[styles.previewMessage, { color: palette.secondary }]}>
             No numbers are showing. You see what you ate and when.
           </Text>
-        ) : null}
-
-        {state.opts.totals && hasVisibleNumbers && meals.length > 0 ? (
-          <View style={[styles.totals, { borderTopColor: palette.border }]}>
-            <Text style={[styles.eyebrow, { color: palette.secondary }]}>
-              Day so far
-            </Text>
-            <View style={styles.chipList}>
-              {visibleMacros.map((macro) => {
-                const total = meals.reduce(
-                  (sum, meal) => sum + meal.values[macro.id],
-                  0,
-                );
-                return (
-                  <MacroChip
-                    key={macro.id}
-                    macro={macro}
-                    value={total}
-                    reveal={state.opts.reveal}
-                    palette={palette}
-                  />
-                );
-              })}
-            </View>
-          </View>
         ) : null}
       </View>
     </View>
@@ -371,9 +274,27 @@ export default function DailyScreen() {
   const [state, setState] = useState<SetupState>(DEFAULT_STATE);
   const [isLoading, setIsLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
-  // Filled by the C# backend later.
-  const [meals] = useState<Meal[]>([]);
-  const [streakDays] = useState(0);
+  const { user } = useCurrentUser();
+  const {
+    meals: savedMeals,
+    isLoading: isLoadingMeals,
+    error: mealsError,
+  } = useMeals(user?.userId ?? null, localDateString());
+  const meals: Meal[] = savedMeals.map((meal) => ({
+    id: meal.mealId,
+    name: meal.mealType,
+    time: formatTime(meal.date),
+    foods: meal.foods.map((food) => food.food_Item).join(", "),
+    values: {
+      cal: round(meal.calories),
+      pro: round(meal.protein),
+      carb: round(meal.carbohydrates),
+      fat: round(meal.fat),
+      fib: round(meal.fiber),
+      sug: round(meal.sugars),
+      sod: round(meal.sodium),
+    },
+  }));
 
   useEffect(() => {
     let active = true;
@@ -433,12 +354,18 @@ export default function DailyScreen() {
               </Text>
             ) : null}
 
+            {mealsError ? (
+              <Text accessibilityRole="alert" style={styles.errorText}>
+                {mealsError}
+              </Text>
+            ) : null}
+
             {!isLoading ? (
               <DailyPreview
                 state={state}
                 palette={palette}
                 meals={meals}
-                streakDays={streakDays}
+                isLoadingMeals={isLoadingMeals}
               />
             ) : (
               <Text style={[styles.loadingText, { color: palette.secondary }]}>
@@ -516,15 +443,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
-  streakPill: {
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  streakText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
   mealCard: {
     gap: Spacing.two,
     borderRadius: 14,
@@ -544,6 +462,10 @@ const styles = StyleSheet.create({
   },
   mealTime: {
     fontSize: 12,
+    lineHeight: 18,
+  },
+  mealFoods: {
+    fontSize: 13,
     lineHeight: 18,
   },
   chipList: {
@@ -573,34 +495,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
-  checkin: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: Spacing.one,
-  },
-  checkinLabel: {
-    fontSize: 12,
-    marginRight: 2,
-  },
-  moodButton: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  moodText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
   previewMessage: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  totals: {
-    gap: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.three,
   },
   weightRow: {
     flexDirection: "row",
