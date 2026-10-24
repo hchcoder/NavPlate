@@ -5,7 +5,7 @@ using Hackathon.Api.Services;
 
 namespace Hackathon.Api.Controllers;
 
-[ApiController]
+[ApiController] // 
 [Route("api/[controller]")]
 public class FoodController : ControllerBase
 {
