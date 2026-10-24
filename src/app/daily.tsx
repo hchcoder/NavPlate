@@ -11,6 +11,7 @@ import {
 } from "@/components/daily-preview";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { colors } from "@/styles/global";
 
 const STORAGE_KEY = "steady-plate-setup";
 
@@ -22,10 +23,10 @@ export default function DailyScreen() {
     raised: theme.backgroundSelected,
     text: theme.text,
     secondary: theme.textSecondary,
-    border: theme.textSecondary + "55",
-    accent: "#2b7a74",
-    accentText: "#ffffff",
-    accentSoft: "#d3ebe8",
+    border: colors.border,
+    accent: colors.primary,
+    accentText: colors.text,
+    accentSoft: colors.primaryTint,
   };
   const [state, setState] = useState<SetupState>(DEFAULT_STATE);
   const [isLoading, setIsLoading] = useState(true);
