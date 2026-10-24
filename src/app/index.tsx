@@ -3,24 +3,204 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import {
-  DEFAULT_STATE,
-  MACROS,
-  OPTIONS,
-  PRESETS,
-  isSetupState,
-  sameAsPreset,
-  toState,
-  type MacroId,
-  type OptionId,
-  type Palette,
-  type SetupState,
-} from "@/components/daily-preview";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
 const STORAGE_KEY = "steady-plate-setup";
+
+const MACROS = [
+  {
+    id: "cal",
+    label: "Calories",
+    unit: "kcal",
+    description: "Energy per meal and per day",
+    color: colors.primary,
+  },
+  {
+    id: "pro",
+    label: "Protein",
+    unit: "g",
+    description: "Grams of protein",
+    color: colors.primary,
+  },
+  {
+    id: "carb",
+    label: "Carbohydrates",
+    unit: "g",
+    description: "Grams of carbs",
+    color: colors.primary,
+  },
+  {
+    id: "fat",
+    label: "Fat",
+    unit: "g",
+    description: "Grams of fat",
+    color: colors.primary,
+  },
+  {
+    id: "fib",
+    label: "Fiber",
+    unit: "g",
+    description: "Grams of fiber",
+    color: colors.primary,
+  },
+  {
+    id: "sug",
+    label: "Sugar",
+    unit: "g",
+    description: "Grams of sugar",
+    color: colors.primary,
+  },
+  {
+    id: "sod",
+    label: "Sodium",
+    unit: "mg",
+    description: "Milligrams of sodium",
+    color: colors.primary,
+  },
+] as const;
+
+const OPTIONS = [
+  {
+    id: "totals",
+    label: "Daily totals",
+    description: "Add up each macro you have turned on",
+  },
+  {
+    id: "reveal",
+    label: "Hide numbers until I tap",
+    description: "Tap a number to reveal it in the preview",
+  },
+  {
+    id: "checkin",
+    label: "Meal check-ins",
+    description: "A quick, optional note on how a meal felt",
+  },
+  {
+    id: "streaks",
+    label: "Logging streaks",
+    description: "Count of days in a row you logged",
+  },
+  {
+    id: "weight",
+    label: "Body weight entry",
+    description: "A weight field on the daily view",
+  },
+] as const;
+
+type MacroId = (typeof MACROS)[number]["id"];
+type OptionId = (typeof OPTIONS)[number]["id"];
+
+type SetupState = {
+  macros: Record<MacroId, boolean>;
+  opts: Record<OptionId, boolean>;
+};
+
+type Preset = {
+  id: string;
+  label: string;
+  macros: readonly MacroId[];
+  opts: readonly OptionId[];
+};
+
+const PRESETS: readonly Preset[] = [
+  { id: "gentle", label: "Gentle start", macros: [], opts: ["checkin"] },
+  {
+    id: "basics",
+    label: "Protein, carbs, fat",
+    macros: ["pro", "carb", "fat"],
+    opts: ["checkin", "reveal"],
+  },
+  {
+    id: "full",
+    label: "Full detail",
+    macros: ["cal", "pro", "carb", "fat", "fib", "sug", "sod"],
+    opts: ["totals"],
+  },
+];
+
+type Palette = {
+  background: string;
+  surface: string;
+  raised: string;
+  text: string;
+  secondary: string;
+  border: string;
+  accent: string;
+  accentText: string;
+  accentSoft: string;
+};
+
+const DEFAULT_PRESET: Preset = {
+  id: "default",
+  label: "Default",
+  macros: ["pro", "carb", "fat", "fib"],
+  opts: ["checkin"],
+};
+
+function toState(preset: Preset): SetupState {
+  return {
+    macros: {
+      cal: preset.macros.includes("cal"),
+      pro: preset.macros.includes("pro"),
+      carb: preset.macros.includes("carb"),
+      fat: preset.macros.includes("fat"),
+      fib: preset.macros.includes("fib"),
+      sug: preset.macros.includes("sug"),
+      sod: preset.macros.includes("sod"),
+    },
+    opts: {
+      totals: preset.opts.includes("totals"),
+      reveal: preset.opts.includes("reveal"),
+      checkin: preset.opts.includes("checkin"),
+      streaks: preset.opts.includes("streaks"),
+      weight: preset.opts.includes("weight"),
+    },
+  };
+}
+
+const DEFAULT_STATE = toState(DEFAULT_PRESET);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function hasBooleanValues<K extends string>(
+  value: unknown,
+  keys: readonly K[],
+): value is Record<K, boolean> {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return keys.every((key) => typeof value[key] === "boolean");
+}
+
+function isSetupState(value: unknown): value is SetupState {
+  return (
+    isRecord(value) &&
+    hasBooleanValues(
+      value.macros,
+      MACROS.map((macro) => macro.id),
+    ) &&
+    hasBooleanValues(
+      value.opts,
+      OPTIONS.map((option) => option.id),
+    )
+  );
+}
+
+function sameAsPreset(state: SetupState, preset: Preset) {
+  const presetState = toState(preset);
+  return (
+    MACROS.every(
+      (macro) => state.macros[macro.id] === presetState.macros[macro.id],
+    ) &&
+    OPTIONS.every(
+      (option) => state.opts[option.id] === presetState.opts[option.id],
+    )
+  );
+}
 
 function SectionHeading({
   title,

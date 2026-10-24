@@ -11,7 +11,7 @@ export const colors = {
 
   primary: '#298fc2',
   // Lighter red for borders and highlights against the solid primary.
-  primaryBright: '#1900ff',
+  primaryBright: '#949494',
   // Translucent red for glows and tinted chips.
   primaryGlow: 'rgba(236, 24, 0, 0.18)',
   primaryTint: 'rgba(236, 24, 0, 0.14)',
