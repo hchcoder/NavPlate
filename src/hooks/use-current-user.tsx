@@ -29,12 +29,16 @@ export type User = {
 // Matches backend/Models/CreateUserRequest.cs
 export type NewUser = Omit<User, "userId">;
 
+// Matches backend/Models/UpdateUserRequest.cs
+export type UserPreferences = Omit<User, "userId" | "username">;
+
 type CurrentUser = {
   user: User | null;
   isLoading: boolean;
   isCreating: boolean;
   error: string | null;
   createUser: (newUser: NewUser) => Promise<User>;
+  updateUser: (preferences: UserPreferences) => Promise<User>;
 };
 
 const CurrentUserContext = createContext<CurrentUser | null>(null);
@@ -100,9 +104,32 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Saves changed preferences for the user who already exists.
+  const updateUser = useCallback(
+    async (preferences: UserPreferences) => {
+      if (user === null) {
+        throw new Error("There is no user to update yet.");
+      }
+      setError(null);
+      try {
+        const updated = await api.put<User>(
+          `/api/user/${user.userId}`,
+          preferences,
+        );
+        setUser(updated);
+        return updated;
+      } catch (err) {
+        console.error("Unable to update the user.", err);
+        setError("We couldn't save your profile. Please try again.");
+        throw err;
+      }
+    },
+    [user],
+  );
+
   return (
     <CurrentUserContext.Provider
-      value={{ user, isLoading, isCreating, error, createUser }}
+      value={{ user, isLoading, isCreating, error, createUser, updateUser }}
     >
       {children}
     </CurrentUserContext.Provider>

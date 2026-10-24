@@ -57,4 +57,22 @@ public class UserController : ControllerBase
             user
         );
     }
+
+    // PUT api/user/5
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<User>> UpdateUser(
+        int id, [FromBody] UpdateUserRequest request)
+    {
+        if (await _userService.GetUserAsync(id) == null)
+            return NotFound();
+
+        await _userService.UpdateUserAsync(id, request);
+
+        var user = await _userService.GetUserAsync(id);
+
+        if (user == null)
+            return Problem("User was updated, but could not be retrieved.");
+
+        return Ok(user);
+    }
 }
