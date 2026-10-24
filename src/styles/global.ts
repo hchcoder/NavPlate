@@ -5,14 +5,11 @@ export const colors = {
   background: '#000000',
   header: '#111111',
   surface: '#1c1c1c',
-  // One step lighter than `surface`, for a card that sits on top of a card.
   surfaceRaised: '#242424',
   border: '#2e2e2e',
 
   primary: '#298fc2',
-  // Lighter red for borders and highlights against the solid primary.
   primaryBright: '#949494',
-  // Translucent red for glows and tinted chips.
   primaryGlow: 'rgba(236, 24, 0, 0.18)',
   primaryTint: 'rgba(236, 24, 0, 0.14)',
 

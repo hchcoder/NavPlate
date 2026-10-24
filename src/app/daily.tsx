@@ -10,6 +10,7 @@ import { colors } from "@/styles/global";
 // Must match the key and shape the Setup tab (index.tsx) saves.
 const STORAGE_KEY = "steady-plate-setup";
 
+// Macro switches, add a curly brace section for new button
 const MACROS = [
   {
     id: "cal",
@@ -62,7 +63,8 @@ const MACROS = [
   },
 ] as const;
 
-const OPTION_IDS = ["totals", "reveal", "checkin", "streaks", "weight"] as const;
+// The bottom toggles on the Setup screen
+const OPTION_IDS = ["totals", "reveal", "checkin", "streaks"] as const;
 
 type MacroId = (typeof MACROS)[number]["id"];
 type OptionId = (typeof OPTION_IDS)[number];
@@ -90,12 +92,13 @@ type Palette = {
   accentSoft: string;
 };
 
+// Moods for the meal check-ins
 const MOODS = ["Satisfying", "Okay", "Hard"] as const;
 
 // Same defaults as the Setup tab, used until a saved setup loads.
 const DEFAULT_STATE: SetupState = {
   macros: { cal: false, pro: true, carb: true, fat: true, fib: true, sug: false, sod: false },
-  opts: { totals: false, reveal: false, checkin: true, streaks: false, weight: false },
+  opts: { totals: false, reveal: false, checkin: false, streaks: false },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,6 +126,8 @@ function isSetupState(value: unknown): value is SetupState {
   );
 }
 
+// In 'meals so far' and in each meal card 
+// Contains the like "Proteing 36g" or something like that
 function MacroChip({
   macro,
   value,
@@ -178,6 +183,7 @@ function MacroChip({
   );
 }
 
+// Pretty self-explanatory, is the meal card that is shown
 function MealCard({
   meal,
   state,
@@ -254,6 +260,7 @@ function MealCard({
   );
 }
 
+// Daily preview widget
 function DailyPreview({
   state,
   palette,
@@ -342,22 +349,12 @@ function DailyPreview({
             </View>
           </View>
         ) : null}
-
-        {state.opts.weight ? (
-          <View style={[styles.weightRow, { borderTopColor: palette.border }]}>
-            <Text style={[styles.weightText, { color: palette.secondary }]}>
-              Body weight
-            </Text>
-            <Text style={[styles.weightText, { color: palette.accent }]}>
-              Add entry
-            </Text>
-          </View>
-        ) : null}
       </View>
     </View>
   );
 }
 
+//Loading the whole screen for the Daily View
 export default function DailyScreen() {
   const theme = useTheme();
   const palette: Palette = {
@@ -455,6 +452,7 @@ export default function DailyScreen() {
   );
 }
 
+// Specific for the Daily sheet, so we keep the style sheet here
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -492,6 +490,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  //Still want the error messages in red
   errorText: {
     color: "#b42318",
     fontSize: 14,

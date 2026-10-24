@@ -82,11 +82,6 @@ const OPTIONS = [
     label: "Logging streaks",
     description: "Count of days in a row you logged",
   },
-  {
-    id: "weight",
-    label: "Body weight entry",
-    description: "A weight field on the daily view",
-  },
 ] as const;
 
 type MacroId = (typeof MACROS)[number]["id"];
@@ -155,7 +150,6 @@ function toState(preset: Preset): SetupState {
       reveal: preset.opts.includes("reveal"),
       checkin: preset.opts.includes("checkin"),
       streaks: preset.opts.includes("streaks"),
-      weight: preset.opts.includes("weight"),
     },
   };
 }
