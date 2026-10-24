@@ -36,6 +36,12 @@ export default function TabLayout() {
             title: "Daily View",
           }}
         />
+        <Tabs.Screen
+          name="meal"
+          options={{
+            title: "Add Meal",
+          }}
+        />
       </Tabs>
     </ThemeProvider>
   );
