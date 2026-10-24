@@ -32,3 +32,4 @@
 /Users/hannah/FoodTrackerHackathon/backend/obj/Debug/net10.0/Hackathon.Api.pdb
 /Users/hannah/FoodTrackerHackathon/backend/obj/Debug/net10.0/Hackathon.Api.genruntimeconfig.cache
 /Users/hannah/FoodTrackerHackathon/backend/obj/Debug/net10.0/ref/Hackathon.Api.dll
+/Users/hannah/FoodTrackerHackathon/backend/bin/Debug/net10.0/MySqlConnector.dll
