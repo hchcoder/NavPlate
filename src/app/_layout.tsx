@@ -2,6 +2,7 @@ import { DarkTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import { CurrentUserProvider } from "@/hooks/use-current-user";
 import { colors } from "@/styles/global";
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
@@ -12,6 +13,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
   return (
+    <CurrentUserProvider>
     <ThemeProvider value={DarkTheme}>
       <AnimatedSplashOverlay />
     <Tabs
@@ -60,5 +62,6 @@ export default function TabLayout() {
         />
       </Tabs>
     </ThemeProvider>
+    </CurrentUserProvider>
   );
 }

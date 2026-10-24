@@ -21,27 +21,70 @@ public class MealService : IMealService
 
         await connection.OpenAsync();
 
+        // One row per food in each meal (LEFT JOIN keeps meals with no foods).
         const string sql = """
-            SELECT mealId, userId, mealType, date
-            FROM Meals
-            WHERE userId = @userId
+            SELECT m.mealId, m.userId, m.mealType, m.date,
+                   fi.food_item, fi.servings,
+                   f.calories, f.protein, f.carbohydrates, f.fat,
+                   f.fiber, f.sugars, f.sodium
+            FROM meals m
+            LEFT JOIN food_instance fi ON fi.mealId = m.mealId
+            LEFT JOIN foods f ON f.food_item = fi.food_item
+            WHERE m.userId = @userId
+              AND (@date IS NULL OR DATE(m.date) = @date)
+            ORDER BY m.date, m.mealId, fi.instanceId
             """;
 
         await using var command = new MySqlCommand(sql, connection);
         command.Parameters.AddWithValue("@userId", request.UserId);
+        command.Parameters.AddWithValue(
+            "@date", (object?)request.Date?.Date ?? DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
+        // NULL (e.g. a food with no fiber listed) counts as 0
+        float Number(string column)
+        {
+            int i = reader.GetOrdinal(column);
+            return reader.IsDBNull(i) ? 0 : Convert.ToSingle(reader.GetValue(i));
+        }
+
         var meals = new List<Meal>();
+        Meal? current = null;
 
         while (await reader.ReadAsync())
         {
-            meals.Add(new Meal
+            int mealId = reader.GetInt32("mealId");
+
+            // Rows are ordered by meal, so a new mealId starts a new meal
+            if (current == null || current.MealId != mealId)
             {
-                MealId = reader.GetInt32("mealId"),
-                UserId = reader.GetInt32("userId"),
-                MealType = reader.GetString("mealType"),
-                Date = reader.GetDateTime("date")
+                current = new Meal
+                {
+                    MealId = mealId,
+                    UserId = reader.GetInt32("userId"),
+                    MealType = Enum.Parse<MealType>(reader.GetString("mealType")),
+                    Date = reader.GetDateTime("date")
+                };
+                meals.Add(current);
+            }
+
+            if (reader.IsDBNull(reader.GetOrdinal("food_item")))
+                continue;
+
+            // Foods' numbers are per serving, so multiply by servings
+            float servings = Number("servings");
+            current.Foods.Add(new MealFood
+            {
+                Food_Item = reader.GetString("food_item"),
+                Servings = servings,
+                Calories = Number("calories") * servings,
+                Protein = Number("protein") * servings,
+                Carbohydrates = Number("carbohydrates") * servings,
+                Fat = Number("fat") * servings,
+                Fiber = Number("fiber") * servings,
+                Sugars = Number("sugars") * servings,
+                Sodium = Number("sodium") * servings
             });
         }
 
@@ -62,7 +105,7 @@ public class MealService : IMealService
     {
         // Insert the meal
         const string sql = """
-            INSERT INTO Meals (userId, mealType, date)
+            INSERT INTO meals (userId, mealType, date)
             VALUES (@userId, @mealType, @date)
             """;
 
@@ -72,7 +115,7 @@ public class MealService : IMealService
             sql, connection, transaction))
         {
             command.Parameters.AddWithValue("@userId", request.UserId);
-            command.Parameters.AddWithValue("@mealType", request.Type);
+            command.Parameters.AddWithValue("@mealType", request.Type.ToString());
             command.Parameters.AddWithValue("@date", request.Date);
 
             await command.ExecuteNonQueryAsync();
@@ -81,7 +124,7 @@ public class MealService : IMealService
 
         // Insert each food instance
         const string foodSql = """
-            INSERT INTO FoodInstance (mealId, food_item, servings)
+            INSERT INTO food_instance (mealId, food_item, servings)
             VALUES (@mealId, @foodItem, @servings)
             """;
 

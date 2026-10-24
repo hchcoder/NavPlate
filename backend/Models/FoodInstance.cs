@@ -8,5 +8,5 @@ public class FoodInstance
     public int InstanceId {get; set;} 
     public int MealId {get; set;}
     public String Food_Item {get; set;} 
-    public int Servings {get; set;}
+    public float Servings {get; set;}
 }

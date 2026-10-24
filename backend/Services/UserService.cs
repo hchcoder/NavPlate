@@ -22,7 +22,7 @@ public class UserService : IUserService
 
         const string sql = """
             SELECT *
-            FROM Users
+            FROM users
             WHERE username = @username
             """;
 
@@ -59,7 +59,7 @@ public class UserService : IUserService
 
         const string sql = """
             SELECT *
-            FROM Users
+            FROM users
             WHERE userId = @id
             """;
 
@@ -95,7 +95,7 @@ public class UserService : IUserService
         await connection.OpenAsync();
 
         const string sql = """
-            INSERT INTO Users
+            INSERT INTO users
                 (Username, SeeCalories, SeeProtein, SeeCarbs,
                  SeeFat, SeeFiber, SeeSugar, SeeSodium)
             VALUES
