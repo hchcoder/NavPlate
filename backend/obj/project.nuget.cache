@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "FOyLh0pcXjE=",
+  "dgSpecHash": "gIQPRYNDL+Q=",
   "success": true,
   "projectFilePath": "/Users/hannah/FoodTrackerHackathon/backend/Hackathon.Api.csproj",
   "expectedPackageFiles": [
     "/Users/hannah/.nuget/packages/microsoft.aspnetcore.openapi/10.0.1/microsoft.aspnetcore.openapi.10.0.1.nupkg.sha512",
-    "/Users/hannah/.nuget/packages/microsoft.openapi/2.0.0/microsoft.openapi.2.0.0.nupkg.sha512"
+    "/Users/hannah/.nuget/packages/microsoft.openapi/2.0.0/microsoft.openapi.2.0.0.nupkg.sha512",
+    "/Users/hannah/.nuget/packages/mysqlconnector/2.6.2/mysqlconnector.2.6.2.nupkg.sha512"
   ],
   "logs": [
     {
