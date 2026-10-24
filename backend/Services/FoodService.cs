@@ -3,7 +3,7 @@ using Hackathon.Api.Data;
 using Hackathon.Api.Models;
 using MySqlConnector;
 
-namespace Hackathon.Api.Services;
+namespace Hackathon.Api.Services; // 
 
 public class FoodService : IFoodService
 {
