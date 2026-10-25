@@ -11,7 +11,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 
 // Only the id is kept on the phone; everything else comes from the backend.
-const USER_ID_KEY = "steady-plate-user-id";
+const USER_ID_KEY = "navplate-user-id";
 
 // Matches backend/Models/User.cs (ASP.NET sends the names in camelCase).
 export type User = {

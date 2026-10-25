@@ -40,9 +40,10 @@ export function localDateString(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Loads a user's meals for one day, and reloads every time the screen is
-// opened so a meal saved on the Add Meal tab shows up.
-export function useMeals(userId: number | null, date: string) {
+// Loads a user's meals for one day (or every day when date is null), and
+// reloads every time the screen is opened so a meal saved on the Add Meal
+// tab shows up.
+export function useMeals(userId: number | null, date: string | null) {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +59,9 @@ export function useMeals(userId: number | null, date: string) {
       setIsLoading(true);
 
       api
-        .get<Meal[]>(`/api/meal?userId=${userId}&date=${date}`)
+        .get<Meal[]>(
+          `/api/meal?userId=${userId}${date !== null ? `&date=${date}` : ""}`,
+        )
         .then((loaded) => {
           if (active) {
             setMeals(loaded);

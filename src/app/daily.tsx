@@ -1,16 +1,21 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { localDateString, useMeals } from "@/hooks/use-meals";
+import {
+  localDateString,
+  useMeals,
+  type Meal as SavedMeal,
+} from "@/hooks/use-meals";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
 // Must match the key and shape the Setup tab (index.tsx) saves.
-const STORAGE_KEY = "steady-plate-setup";
+const STORAGE_KEY = "navplate-setup";
 
 // Macro switches, add a curly brace section for new button
 const MACROS = [
@@ -88,6 +93,55 @@ function formatTime(date: string) {
 
 // One decimal place, e.g. 12.25 -> 12.3
 const round = (value: number) => Math.round(value * 10) / 10;
+
+// Backend meal -> what the meal cards and week rows show
+function toMeal(meal: SavedMeal): Meal {
+  return {
+    id: meal.mealId,
+    name: meal.mealType,
+    time: formatTime(meal.date),
+    foods: meal.foods.map((food) => food.food_Item).join(", "),
+    values: {
+      cal: round(meal.calories),
+      pro: round(meal.protein),
+      carb: round(meal.carbohydrates),
+      fat: round(meal.fat),
+      fib: round(meal.fiber),
+      sug: round(meal.sugars),
+      sod: round(meal.sodium),
+    },
+  };
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Local midnight, `days` days after `date`
+function addDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+// The Sunday that starts the week containing `date`
+function startOfWeek(date: Date) {
+  return addDays(date, -date.getDay());
+}
+
+// "2026-10-24T08:30:00" -> that day at local midnight
+function dayOf(date: string) {
+  const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// "Mar 15 – 21", or "Mar 29 – Apr 4" when the week crosses a month
+function formatWeekRange(start: Date) {
+  const end = addDays(start, 6);
+  const from = `${MONTHS[start.getMonth()]} ${start.getDate()}`;
+  const to =
+    end.getMonth() === start.getMonth()
+      ? `${end.getDate()}`
+      : `${MONTHS[end.getMonth()]} ${end.getDate()}`;
+  return `${from} – ${to}`;
+}
 
 type Palette = {
   background: string;
@@ -257,6 +311,147 @@ function DailyPreview({
   );
 }
 
+// Week widget under the Today box: one row per day (Sun–Sat), one line per meal.
+// Arrows move a week at a time, from the week of the first logged meal up to this week.
+function WeekView({
+  state,
+  palette,
+  meals,
+  isLoading,
+  error,
+}: {
+  state: SetupState;
+  palette: Palette;
+  meals: readonly SavedMeal[];
+  isLoading: boolean;
+  error: string | null;
+}) {
+  const [weeksBack, setWeeksBack] = useState(0);
+  const visibleMacros = MACROS.filter((macro) => state.macros[macro.id]);
+
+  const thisWeek = startOfWeek(new Date());
+  const firstMealDate = meals.reduce<string | null>(
+    (earliest, meal) =>
+      earliest === null || meal.date < earliest ? meal.date : earliest,
+    null,
+  );
+  const firstWeek =
+    firstMealDate !== null ? startOfWeek(dayOf(firstMealDate)) : thisWeek;
+  const weekStart = addDays(thisWeek, -7 * weeksBack);
+  const canGoBack = weekStart > firstWeek;
+  const canGoForward = weeksBack > 0;
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  const mealsByDay = new Map<string, Meal[]>();
+  for (const meal of meals) {
+    const key = meal.date.slice(0, 10);
+    mealsByDay.set(key, [...(mealsByDay.get(key) ?? []), toMeal(meal)]);
+  }
+
+  return (
+    <View
+      style={[
+        styles.weekCard,
+        { backgroundColor: palette.surface, borderColor: palette.border },
+      ]}
+    >
+      <View style={styles.weekHeader}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Previous week"
+          accessibilityState={{ disabled: !canGoBack }}
+          disabled={!canGoBack}
+          hitSlop={8}
+          onPress={() => setWeeksBack((current) => current + 1)}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={22}
+            color={canGoBack ? palette.accent : palette.border}
+          />
+        </Pressable>
+        <Text style={[styles.weekTitle, { color: palette.text }]}>
+          {formatWeekRange(weekStart)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Next week"
+          accessibilityState={{ disabled: !canGoForward }}
+          disabled={!canGoForward}
+          hitSlop={8}
+          onPress={() => setWeeksBack((current) => current - 1)}
+        >
+          <Ionicons
+            name="chevron-forward"
+            size={22}
+            color={canGoForward ? palette.accent : palette.border}
+          />
+        </Pressable>
+      </View>
+
+      {error ? (
+        <Text
+          accessibilityRole="alert"
+          style={[styles.errorText, styles.weekMessage]}
+        >
+          {error}
+        </Text>
+      ) : null}
+
+      {days.map((day) => {
+        const dayMeals = mealsByDay.get(localDateString(day)) ?? [];
+        return (
+          <View
+            key={day.toDateString()}
+            style={[styles.weekRow, { borderTopColor: palette.border }]}
+          >
+            <View style={styles.weekDate}>
+              <Text style={[styles.weekDateNumber, { color: palette.accent }]}>
+                {`${day.getMonth() + 1}/${day.getDate()}`}
+              </Text>
+              <Text style={[styles.weekDateName, { color: palette.accent }]}>
+                {DAY_NAMES[day.getDay()]}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.weekMeals,
+                {
+                  backgroundColor: palette.raised,
+                  borderLeftColor: palette.border,
+                },
+              ]}
+            >
+              {dayMeals.length === 0 ? (
+                <Text style={[styles.weekMealLine, { color: palette.secondary }]}>
+                  {isLoading ? "Loading..." : "No meals"}
+                </Text>
+              ) : (
+                dayMeals.map((meal) => (
+                  <Text
+                    key={meal.id}
+                    style={[styles.weekMealLine, { color: palette.text }]}
+                  >
+                    <Text style={styles.weekMealName}>{meal.name}</Text>
+                    {visibleMacros.length > 0
+                      ? `  ${visibleMacros
+                          .map(
+                            (macro) =>
+                              `${macro.label} ${meal.values[macro.id]} ${macro.unit}`,
+                          )
+                          .join(" · ")}`
+                      : ""}
+                  </Text>
+                ))
+              )}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 //Loading the whole screen for the Daily View
 export default function DailyScreen() {
   const theme = useTheme();
@@ -280,21 +475,13 @@ export default function DailyScreen() {
     isLoading: isLoadingMeals,
     error: mealsError,
   } = useMeals(user?.userId ?? null, localDateString());
-  const meals: Meal[] = savedMeals.map((meal) => ({
-    id: meal.mealId,
-    name: meal.mealType,
-    time: formatTime(meal.date),
-    foods: meal.foods.map((food) => food.food_Item).join(", "),
-    values: {
-      cal: round(meal.calories),
-      pro: round(meal.protein),
-      carb: round(meal.carbohydrates),
-      fat: round(meal.fat),
-      fib: round(meal.fiber),
-      sug: round(meal.sugars),
-      sod: round(meal.sodium),
-    },
-  }));
+  const meals: Meal[] = savedMeals.map(toMeal);
+  // Every meal (no date filter) for the week widget and its arrow limits
+  const {
+    meals: allMeals,
+    isLoading: isLoadingAllMeals,
+    error: allMealsError,
+  } = useMeals(user?.userId ?? null, null);
 
   useEffect(() => {
     let active = true;
@@ -361,12 +548,21 @@ export default function DailyScreen() {
             ) : null}
 
             {!isLoading ? (
-              <DailyPreview
-                state={state}
-                palette={palette}
-                meals={meals}
-                isLoadingMeals={isLoadingMeals}
-              />
+              <>
+                <DailyPreview
+                  state={state}
+                  palette={palette}
+                  meals={meals}
+                  isLoadingMeals={isLoadingMeals}
+                />
+                <WeekView
+                  state={state}
+                  palette={palette}
+                  meals={allMeals}
+                  isLoading={isLoadingAllMeals}
+                  error={allMealsError}
+                />
+              </>
             ) : (
               <Text style={[styles.loadingText, { color: palette.secondary }]}>
                 Loading your setup...
@@ -381,6 +577,60 @@ export default function DailyScreen() {
 
 // Specific for the Daily sheet, so we keep the style sheet here
 const styles = StyleSheet.create({
+  weekCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  weekHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  weekTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  weekMessage: {
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
+  weekRow: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  weekDate: {
+    width: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.three,
+  },
+  weekDateNumber: {
+    fontSize: 20,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  weekDateName: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  weekMeals: {
+    flex: 1,
+    justifyContent: "center",
+    gap: Spacing.one,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  weekMealLine: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  weekMealName: {
+    fontWeight: "700",
+  },
   screen: {
     flex: 1,
   },
