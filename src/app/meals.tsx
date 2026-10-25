@@ -55,11 +55,29 @@ const now = (): MealTime => {
 };
 const formatTime = ({ hour, minute, period }: MealTime) =>
   `${hour}:${String(minute).padStart(2, "0")} ${period}`;
-// Today's date with the picked time, e.g. "2026-10-24T08:30:00" (local, no timezone).
-const toDateTime = ({ hour, minute, period }: MealTime) => {
+// Picked date with the picked time, e.g. "2026-10-24T08:30:00" (local, no timezone).
+const toDateTime = (date: string, { hour, minute, period }: MealTime) => {
   const hour24 = (hour % 12) + (period === "PM" ? 12 : 0);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${localDateString()}T${pad(hour24)}:${pad(minute)}:00`;
+  return `${date}T${pad(hour24)}:${pad(minute)}:00`;
+};
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Today and the 30 days before it, as "2026-10-24" (no future dates).
+const recentDays = () => {
+  const d = new Date();
+  return Array.from({ length: 31 }, (_, i) =>
+    localDateString(new Date(d.getFullYear(), d.getMonth(), d.getDate() - i)),
+  );
+};
+// "2026-10-22" -> "Today", "Yesterday", or "Thu Oct 22"
+const formatDay = (date: string) => {
+  const [today, yesterday] = recentDays();
+  if (date === today) return "Today";
+  if (date === yesterday) return "Yesterday";
+  const [y, m, d] = date.split("-").map(Number);
+  const day = new Date(y, m - 1, d);
+  return `${DAY_NAMES[day.getDay()]} ${MONTHS[day.getMonth()]} ${day.getDate()}`;
 };
 const guessType = (): MealType => {
   const h = new Date().getHours();
@@ -80,6 +98,8 @@ export default function AddMeal() {
     accentSoft: colors.primaryTint,
   };
   const [type, setType] = useState<MealType>(guessType);
+  const [date, setDate] = useState(() => localDateString());
+  const [dateOpen, setDateOpen] = useState(false);
   const [time, setTime] = useState(now);
   const [timeOpen, setTimeOpen] = useState(false);
   const [foods, setFoods] = useState<MealFood[]>([]);
@@ -133,7 +153,7 @@ export default function AddMeal() {
       await addMeal({
         userId: user.userId,
         type,
-        date: toDateTime(time),
+        date: toDateTime(date, time),
         foodInstances: foods.map(({ food, servings }) => ({
           food_Item: food.id,
           servings,
@@ -142,6 +162,7 @@ export default function AddMeal() {
       // Only clear the form once the meal is saved.
       setFoods([]);
       setType(guessType());
+      setDate(localDateString());
       setTime(now());
       setSaved(true);
     } catch {
@@ -188,6 +209,33 @@ export default function AddMeal() {
                   );
                 })}
               </View>
+
+              <View style={styles.timeRow}>
+                <Text style={[styles.label, { color: palette.text }]}>Date</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Date, ${formatDay(date)}`}
+                  accessibilityState={{ expanded: dateOpen }}
+                  onPress={() => setDateOpen((o) => !o)}
+                  style={({ pressed }) => [
+                    styles.field,
+                    { backgroundColor: palette.background, borderColor: palette.border, opacity: pressed ? 0.75 : 1 },
+                  ]}
+                >
+                  <Text style={{ color: palette.text }}>{formatDay(date)}</Text>
+                </Pressable>
+              </View>
+              {dateOpen && (
+                <View style={[styles.timeMenu, { backgroundColor: palette.background, borderColor: palette.border }]}>
+                  <TimeColumn
+                    values={recentDays()}
+                    selected={date}
+                    format={formatDay}
+                    palette={palette}
+                    onSelect={setDate}
+                  />
+                </View>
+              )}
 
               <View style={styles.timeRow}>
                 <Text style={[styles.label, { color: palette.text }]}>Time</Text>

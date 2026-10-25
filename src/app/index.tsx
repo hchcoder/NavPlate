@@ -15,7 +15,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTheme } from "@/hooks/use-theme";
 import { colors } from "@/styles/global";
 
-const STORAGE_KEY = "steady-plate-setup";
+const STORAGE_KEY = "navplate-setup";
 
 const MACROS = [
   {
@@ -418,7 +418,7 @@ export default function HomeScreen() {
               <>
                 <View style={styles.intro}>
                   <Text style={[styles.eyebrow, { color: palette.accent }]}>
-                    Welcome to Steady Plate
+                    Welcome to NavPlate
                   </Text>
                   <Text style={[styles.pageTitle, { color: palette.text }]}>
                     Choose what you want to see
@@ -561,7 +561,7 @@ export default function HomeScreen() {
                     <Text
                       style={[styles.finePrint, { color: palette.secondary }]}
                     >
-                      Steady Plate supports your care plan and does not replace
+                      NavPlate supports your care plan and does not replace
                       your care team. If you work with one, they can help you
                       decide what to track.
                     </Text>
